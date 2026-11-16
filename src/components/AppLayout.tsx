@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation } from 'react-router';
 import { AppShell, Badge, Button, Container, Group, Text, Title } from '@mantine/core';
 import { useAuth } from '../auth/context';
 import { ROLE_LABEL } from '../lib/status';
+import { NotificationBell } from './NotificationBell';
 
 export function AppLayout() {
   const { profile, isManager, signOut } = useAuth();
@@ -35,6 +36,7 @@ export function AppLayout() {
             </Group>
           </Group>
           <Group gap="sm" wrap="nowrap">
+            <NotificationBell />
             <Text size="sm" visibleFrom="sm">
               {profile?.full_name}
             </Text>

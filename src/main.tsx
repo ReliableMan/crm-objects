@@ -7,6 +7,7 @@ import { Notifications } from '@mantine/notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
+import './lib/dayjs';
 import App from './App';
 import { AuthProvider } from './auth/AuthProvider';
 
@@ -25,7 +26,8 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MantineProvider>
       <ModalsProvider labels={{ confirm: 'Подтвердить', cancel: 'Отмена' }}>
-        <Notifications position="top-right" />
+        {/* Снизу: сверху справа toast перекрывал бы колокольчик уведомлений в шапке */}
+        <Notifications position="bottom-right" />
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <AuthProvider>

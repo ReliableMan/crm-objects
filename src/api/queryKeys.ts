@@ -20,4 +20,8 @@ export const queryKeys = {
   transitions: () => ['transitions'] as const,
   executors: () => ['executors'] as const,
   profile: (userId: string | undefined) => ['profile', userId ? norm(userId) : null] as const,
+  /** Префикс всех запросов уведомлений */
+  notifications: () => ['notifications'] as const,
+  notificationsList: () => ['notifications', 'list'] as const,
+  notificationsUnread: () => ['notifications', 'unread'] as const,
 };
