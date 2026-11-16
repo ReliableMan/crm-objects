@@ -44,6 +44,9 @@ export function toUserMessage(error: unknown): string {
     }
   }
 
+  // Наши собственные понятные сообщения (например, «Задача не найдена или нет доступа»)
+  if (error instanceof Error && CYRILLIC.test(error.message)) return error.message;
+
   console.error(error);
   return 'Что-то пошло не так';
 }
