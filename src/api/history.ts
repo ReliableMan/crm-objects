@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from './queryKeys';
 
 export function useHistory(taskId: string) {
   return useQuery({
-    queryKey: ['history', taskId],
+    queryKey: queryKeys.history(taskId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_status_history')

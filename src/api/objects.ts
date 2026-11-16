@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { invalidateWorkData, notifyError, notifySuccess } from './common';
+import { invalidate, notifyError, notifySuccess } from './common';
+import { queryKeys } from './queryKeys';
 
 export interface ObjectInput {
   name: string;
@@ -10,7 +11,7 @@ export interface ObjectInput {
 /** Для исполнителя RLS сам вернёт только «его» объекты, а tasks(count) — только его задачи. */
 export function useObjects() {
   return useQuery({
-    queryKey: ['objects'],
+    queryKey: queryKeys.objects(),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('objects')
@@ -26,7 +27,7 @@ export type ObjectListItem = NonNullable<ReturnType<typeof useObjects>['data']>[
 
 export function useObject(id: string) {
   return useQuery({
-    queryKey: ['object', id],
+    queryKey: queryKeys.object(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('objects')
@@ -52,9 +53,9 @@ export function useCreateObject() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       notifySuccess('Объект создан');
-      return invalidateWorkData(qc);
+      await invalidate(qc, [queryKeys.objects()]);
     },
     onError: notifyError,
   });
@@ -68,9 +69,10 @@ export function useUpdateObject() {
       if (error) throw error;
       if (data.length === 0) throw new Error('Объект не найден или нет доступа');
     },
-    onSuccess: () => {
+    onSuccess: async (_data, { id }) => {
       notifySuccess('Объект сохранён');
-      return invalidateWorkData(qc);
+      // Название объекта показывается и в карточках задач, и в «Моих задачах»
+      await invalidate(qc, [queryKeys.objects(), queryKeys.object(id), queryKeys.taskAll(), queryKeys.myTasks()]);
     },
     onError: notifyError,
   });
@@ -84,9 +86,9 @@ export function useDeleteObject() {
       if (error) throw error;
       if (data.length === 0) throw new Error('Объект не найден или нет доступа');
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       notifySuccess('Объект удалён');
-      return invalidateWorkData(qc);
+      await invalidate(qc, [queryKeys.objects()]);
     },
     onError: notifyError,
   });

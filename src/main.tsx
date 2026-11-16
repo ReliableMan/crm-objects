@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import { MantineProvider } from '@mantine/core';
@@ -9,6 +9,11 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import App from './App';
 import { AuthProvider } from './auth/AuthProvider';
+
+// Devtools только в режиме разработки: в production-сборку модуль не попадает
+const ReactQueryDevtools = import.meta.env.DEV
+  ? lazy(() => import('@tanstack/react-query-devtools').then((m) => ({ default: m.ReactQueryDevtools })))
+  : () => null;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,6 +32,9 @@ createRoot(document.getElementById('root')!).render(
               <App />
             </AuthProvider>
           </BrowserRouter>
+          <Suspense fallback={null}>
+            <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
+          </Suspense>
         </QueryClientProvider>
       </ModalsProvider>
     </MantineProvider>

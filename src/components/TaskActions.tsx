@@ -7,7 +7,7 @@ import type { TaskStatus } from '../lib/supabase';
 import { CommentModal } from './CommentModal';
 
 interface Props {
-  task: { id: string; status: TaskStatus; assignee_id: string };
+  task: { id: string; object_id: string; status: TaskStatus; assignee_id: string };
 }
 
 /** Кнопки переходов из status_transitions. База проверит каждый переход повторно. */
@@ -22,7 +22,7 @@ export function TaskActions({ task }: Props) {
 
   const run = (t: Transition, comment?: string) => {
     change.mutate(
-      { taskId: task.id, to: t.to_status, comment },
+      { taskId: task.id, objectId: task.object_id, to: t.to_status, comment },
       { onSuccess: () => setCommentFor(null) },
     );
   };

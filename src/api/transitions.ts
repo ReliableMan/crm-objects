@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase, type Tables, type TaskStatus } from '../lib/supabase';
+import { queryKeys } from './queryKeys';
 
 export type Transition = Tables<'status_transitions'>;
 
 export function useTransitions() {
   return useQuery({
-    queryKey: ['transitions'],
+    queryKey: queryKeys.transitions(),
     staleTime: Infinity,
     queryFn: async (): Promise<Transition[]> => {
       const { data, error } = await supabase.from('status_transitions').select('*');

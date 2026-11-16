@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { queryKeys } from './queryKeys';
 
 export function useExecutors() {
   return useQuery({
-    queryKey: ['executors'],
+    queryKey: queryKeys.executors(),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')

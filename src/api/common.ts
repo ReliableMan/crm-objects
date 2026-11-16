@@ -1,4 +1,4 @@
-import type { QueryClient } from '@tanstack/react-query';
+import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { toUserMessage } from '../lib/errors';
 
@@ -10,14 +10,7 @@ export function notifySuccess(message: string): void {
   notifications.show({ color: 'green', message });
 }
 
-/**
- * Объекты, задачи и история связаны (счётчики задач, видимость объектов, статусы),
- * поэтому после любой мутации обновляем все ключи этих сущностей.
- */
-export function invalidateWorkData(qc: QueryClient): Promise<void> {
-  return Promise.all(
-    [['objects'], ['object'], ['task'], ['history'], ['my-tasks']].map((queryKey) =>
-      qc.invalidateQueries({ queryKey }),
-    ),
-  ).then(() => undefined);
+/** Инвалидирует ключи и дожидается перезапроса активных запросов. */
+export async function invalidate(qc: QueryClient, keys: readonly QueryKey[]): Promise<void> {
+  await Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey })));
 }

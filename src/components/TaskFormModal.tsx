@@ -74,7 +74,7 @@ function TaskForm({ task, defaultObjectId, onDone, onCreated }: FormProps) {
       assignee_id: v.assignee_id!,
     };
     if (task) {
-      update.mutate({ id: task.id, ...input }, { onSuccess: onDone });
+      update.mutate({ id: task.id, previousObjectId: task.object_id, ...input }, { onSuccess: onDone });
     } else {
       create.mutate(input, {
         onSuccess: (row) => {

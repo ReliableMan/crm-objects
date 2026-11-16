@@ -44,7 +44,10 @@ export function TaskPage() {
       labels: { confirm: 'Удалить', cancel: 'Отмена' },
       confirmProps: { color: 'red' },
       onConfirm: () =>
-        remove.mutate(t.id, { onSuccess: () => navigate(t.object ? `/objects/${t.object.id}` : '/objects') }),
+        remove.mutate(
+          { id: t.id, objectId: t.object_id },
+          { onSuccess: () => navigate(`/objects/${t.object_id}`) },
+        ),
     });
 
   return (

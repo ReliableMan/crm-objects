@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../api/queryKeys';
 import { supabase } from '../lib/supabase';
 import { AuthContext, type AuthContextValue, type Profile } from './context';
 
@@ -30,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const userId = session?.user.id;
 
   const profileQuery = useQuery({
-    queryKey: ['profile', userId],
+    queryKey: queryKeys.profile(userId),
     enabled: Boolean(userId),
     staleTime: Infinity,
     queryFn: async (): Promise<Profile | null> => {
