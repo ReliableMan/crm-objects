@@ -1,13 +1,17 @@
 // Тест безопасности: попытки обойти права так, как это может сделать злоумышленник
-// с публичным ключом из браузера. Сервисный ключ НЕ используется.
+// с публичным ключом из браузера. Все действия — только с публичным ключом.
 //
 //   npm run test:security
 //
 // Перед каждым сценарием нужная задача ищется заново (клиентом постановщика) —
 // тест не полагается на исходное состояние seed. Нет подходящей задачи → сценарий пропущен.
-// Все проверки негативные; единственное исключение — №20 создаёт и удаляет свою задачу.
+// Проверки негативные, кроме №20 и №34 — они создают свою задачу «security-test: …»
+// и убирают её в finally. №34 переводит задачу в «В работе», а такую задачу удалить
+// нельзя, поэтому для уборки (и только для неё) используется сервисный ключ и
+// admin_delete_task. Нет SUPABASE_SERVICE_ROLE_KEY → №34 пропускается.
 import {
   DEMO_USERS,
+  createAdminClient,
   createPublicClient,
   requireEnv,
   signIn,
@@ -74,6 +78,9 @@ function assertEqual(ctx: string, before: unknown, after: unknown): void {
 // ---------- Клиенты ----------
 
 const anon = createPublicClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY);
+// Только для уборки в №34 (admin_delete_task). Атак с этим ключом нет.
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+const cleanupClient = serviceKey ? createAdminClient(env.VITE_SUPABASE_URL, serviceKey) : null;
 const clients = {} as Record<DemoUserKey, Db>;
 const ids = {} as Record<DemoUserKey, string>;
 
@@ -416,6 +423,142 @@ async function run(): Promise<void> {
     assertError('manager', await clients.manager.rpc('admin_reset_demo'));
     assertEqual('количество строк', before, await dataCounts());
   });
+
+  // --- уведомления (сверх ТЗ) ---
+  await check(30, 'anon и ivan: не видят чужие уведомления', async () => {
+    assertDenied('anon select', await anon.from('notifications').select('id'));
+    const own = await clients.ivan.from('notifications').select('id, user_id');
+    if (own.error) throw new Error(own.error.message);
+    const foreign = own.data.filter((n) => n.user_id !== ids.ivan);
+    if (foreign.length > 0) throw new Error(`ivan видит чужие уведомления: ${foreign.length}`);
+    assertDenied(
+      'select уведомлений manager',
+      await clients.ivan.from('notifications').select('id').eq('user_id', ids.manager),
+    );
+  });
+
+  await check(31, 'ivan: insert в notifications', async () => {
+    const task = await anyTask('ivan');
+    const before = await notificationsOf('manager');
+    for (const target of ['ivan', 'manager'] as const) {
+      const r = await clients.ivan
+        .from('notifications')
+        .insert({ user_id: ids[target], task_id: task.id, kind: 'status_changed' })
+        .select('id');
+      assertError(`insert для ${target}`, r);
+    }
+    assertEqual('уведомления manager', before, await notificationsOf('manager'));
+  });
+
+  await check(32, 'ivan: update read_at у чужого уведомления', async () => {
+    const fixture = await notificationFixture();
+    const before = await notificationsOf('manager');
+    const target = before.find((n) => n.task_id === fixture?.taskId) ?? before[0];
+    if (!target) throw new Skip('у manager нет уведомлений');
+    const r = await clients.ivan
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', target.id)
+      .select('id');
+    assertDenied('update read_at', r);
+    assertEqual('уведомления manager', before, await notificationsOf('manager'));
+  });
+
+  await check(33, 'ivan: менять у своего уведомления что-то кроме read_at', async () => {
+    const fixture = await notificationFixture();
+    const before = await notificationsOf('ivan');
+    const own = before.find((n) => n.task_id === fixture?.taskId) ?? before[0];
+    if (!own) throw new Skip('у ivan нет уведомлений');
+    const other = (await allTasks()).find((t) => t.id !== own.task_id);
+    const attempts = {
+      user_id: { user_id: ids.manager },
+      kind: { kind: own.kind === 'status_changed' ? 'task_assigned' : 'status_changed' },
+      task_id: { task_id: other?.id ?? own.task_id },
+      history_id: { history_id: null },
+      created_at: { created_at: '2000-01-01T00:00:00Z' },
+    } as const;
+    for (const [column, patch] of Object.entries(attempts)) {
+      const r = await clients.ivan.from('notifications').update(patch).eq('id', own.id).select('id');
+      assertError(`update ${column}`, r);
+    }
+    assertEqual('уведомления ivan', before, await notificationsOf('ivan'));
+  });
+
+  await check(34, 'позитив: переход исполнителя → уведомление постановщику', async () => {
+    const fixture = await notificationFixture();
+    if (!fixture) throw new Skip('нет SUPABASE_SERVICE_ROLE_KEY для уборки тестовой задачи');
+
+    const assigned = await clients.ivan.from('notifications').select('kind').eq('task_id', fixture.taskId);
+    if (assigned.error) throw new Error(assigned.error.message);
+    if (!assigned.data.some((n) => n.kind === 'task_assigned')) {
+      throw new Error('ivan не получил уведомление о назначении');
+    }
+
+    const got = await clients.manager
+      .from('notifications')
+      .select('kind, history:task_status_history ( from_status, to_status, changed_by )')
+      .eq('task_id', fixture.taskId);
+    if (got.error) throw new Error(got.error.message);
+    const ok = got.data.some(
+      (n) =>
+        n.kind === 'status_changed' &&
+        n.history?.from_status === 'new' &&
+        n.history.to_status === 'in_progress' &&
+        n.history.changed_by === ids.ivan,
+    );
+    if (!ok) throw new Error(`у manager нет уведомления о переходе: ${JSON.stringify(got.data)}`);
+  });
+
+  await check(35, 'anon, ivan, manager: rpc admin_delete_task', async () => {
+    const task = await findTask('in_progress');
+    await unchanged(task, async () => {
+      assertError('anon', await anon.rpc('admin_delete_task', { p_task_id: task.id }));
+      assertError('ivan', await clients.ivan.rpc('admin_delete_task', { p_task_id: task.id }));
+      assertError('manager', await clients.manager.rpc('admin_delete_task', { p_task_id: task.id }));
+    });
+  });
+}
+
+// ---------- Фикстура для уведомлений (№32–34) ----------
+// Задача «security-test: уведомления» на ivan: при создании ivan получает task_assigned,
+// после его перехода new → in_progress manager получает status_changed.
+// Создаётся один раз при первом обращении, удаляется в finally в main().
+
+let fixturePromise: Promise<{ taskId: string } | null> | null = null;
+let fixtureTaskId: string | null = null;
+
+function notificationFixture(): Promise<{ taskId: string } | null> {
+  fixturePromise ??= (async () => {
+    if (!cleanupClient) return null;
+    const objectId = (await anyTask('ivan')).object_id;
+    const { data, error } = await clients.manager
+      .from('tasks')
+      .insert({ object_id: objectId, title: 'security-test: уведомления', assignee_id: ids.ivan })
+      .select('id')
+      .single();
+    if (error) throw new Error(`фикстура: insert: ${error.message}`);
+    fixtureTaskId = data.id;
+    const rpc = await clients.ivan.rpc('change_task_status', { p_task_id: data.id, p_to: 'in_progress' });
+    if (rpc.error) throw new Error(`фикстура: rpc: ${rpc.error.message}`);
+    return { taskId: data.id };
+  })();
+  return fixturePromise;
+}
+
+async function cleanupFixture(): Promise<void> {
+  if (!fixtureTaskId || !cleanupClient) return;
+  const { error } = await cleanupClient.rpc('admin_delete_task', { p_task_id: fixtureTaskId });
+  if (error) {
+    results.failed++;
+    console.log(`❌ уборка тестовой задачи ${fixtureTaskId} не удалась: ${error.message}`);
+  }
+}
+
+/** Уведомления пользователя, прочитанные им самим (снимок для сравнения). */
+async function notificationsOf(user: DemoUserKey) {
+  const { data, error } = await clients[user].from('notifications').select('*').order('id');
+  if (error) throw new Error(`${user} не смог прочитать уведомления: ${error.message}`);
+  return data;
 }
 
 async function main(): Promise<void> {
@@ -426,7 +569,11 @@ async function main(): Promise<void> {
   }
 
   console.log('Тест безопасности (публичный ключ, без сервисного)\n');
-  await run();
+  try {
+    await run();
+  } finally {
+    await cleanupFixture();
+  }
 
   for (const c of Object.values(clients)) await c.auth.signOut();
 
