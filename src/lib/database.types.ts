@@ -39,6 +39,58 @@ export type Database = {
   }
   public: {
     Tables: {
+      notifications: {
+        Row: {
+          created_at: string
+          history_id: number | null
+          id: number
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at: string | null
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          history_id?: number | null
+          id?: never
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          history_id?: number | null
+          id?: never
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_history_id_fkey"
+            columns: ["history_id"]
+            isOneToOne: false
+            referencedRelation: "task_status_history"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       objects: {
         Row: {
           address: string
@@ -224,6 +276,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_delete_task: { Args: { p_task_id: string }; Returns: undefined }
       admin_reset_demo: { Args: never; Returns: undefined }
       change_task_status: {
         Args: {
@@ -251,6 +304,7 @@ export type Database = {
       }
     }
     Enums: {
+      notification_kind: "status_changed" | "task_assigned"
       task_status: "new" | "in_progress" | "review" | "accepted" | "rework"
       transition_actor: "manager" | "assignee"
       user_role: "manager" | "executor"
@@ -384,6 +438,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      notification_kind: ["status_changed", "task_assigned"],
       task_status: ["new", "in_progress", "review", "accepted", "rework"],
       transition_actor: ["manager", "assignee"],
       user_role: ["manager", "executor"],
