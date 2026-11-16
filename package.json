@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "seed": "tsx scripts/seed.ts",
     "seed:reset": "tsx scripts/seed.ts --reset",
-    "gen:types": "supabase gen types typescript --linked > src/lib/database.types.ts"
+    "gen:types": "supabase gen types typescript --linked > src/lib/database.types.ts",
+    "test:security": "tsx scripts/security-test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",
